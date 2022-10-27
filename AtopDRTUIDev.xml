@@ -1,0 +1,98 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>ATOP DRT UI Dev</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>-1</daysToKeep>
+        <numToKeep>10</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.4.5">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/HexaInnovLab/ATOP_DRT_UI.git</url>
+        <credentialsId>jenkins-user-jag</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/dev</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.CleanBeforeCheckout>
+        <deleteUntrackedNestedRepositories>true</deleteUntrackedNestedRepositories>
+      </hudson.plugins.git.extensions.impl.CleanBeforeCheckout>
+    </extensions>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+# This bash is to remove the image
+image_and_tag=&quot;atop-drt-ui-image&quot;
+image_and_tag_array=(${image_and_tag//:/ })
+container_name=&quot;atopdrtui&quot;
+
+if [[ &quot;$(docker images ${image_and_tag_array[0]} | grep ${image_and_tag_array[1]} 2&gt; /dev/null)&quot; != &quot;&quot; ]]; then
+  echo &quot;*********image exists****************&quot;
+  echo &quot;*********removing the image*************&quot;
+  docker stop ${container_name}
+  docker rmi $(docker images -q ${image_and_tag}) -f  
+  docker build -t ${image_and_tag} .
+else 
+  echo &quot;**** Building the image ******&quot;
+  docker build -t ${image_and_tag} .
+fi
+echo &quot;*********removing the intermediate image*************&quot;
+docker rmi -f $(docker images -q --filter label=stage=intermediate)</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>echo ENV_ATOP_API_ROOT_URL=&quot;http://34.206.31.192&quot; &gt;&gt; AtopDrtUiDev.env_file
+echo ENV_ATOP_WEB_SOCKET_ROOT_URL=&quot;ws://34.206.31.192:8090/socket/websocket&quot; &gt;&gt; AtopDrtUiDev.env_file
+echo ENV_ATOP_DRT_API_ROOT_URL=&quot;http://34.206.31.192:81&quot; &gt;&gt; AtopDrtUiDev.env_file
+echo ENV_ATOP_UI_URL=&quot;http://34.206.31.192&quot; &gt;&gt; AtopDrtUiDev.env_file
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+# This bash is to run the image as container
+container_name=&quot;atopdrtui&quot;
+image_name=&quot;atop-drt-ui-image&quot;
+if [ &quot;$(docker ps -aq -f name=${container_name})&quot; ]; then
+  echo &quot;****Stopping the existing container atopdrtweb ******&quot;
+  docker stop ${container_name}
+    if [ &quot;$(docker ps -aq -f status=exited -f name=${container_name})&quot; ]; then
+        # cleanup
+        echo &quot;***** Removing the existing container atopdrtweb *****&quot;
+        docker rm ${container_name}
+    fi
+    # run your container
+    echo &quot;**** Creating and running the new atopdrtweb container *****&quot;
+    docker run --env-file ./AtopDrtUiDev.env_file --restart=always --network=host --name ${container_name} -d -p 81:81 ${image_name}
+else 
+	echo &quot;**** Creating and running the new atopdrtweb container *****&quot;
+	docker run --env-file ./AtopDrtUiDev.env_file --restart=always --network=host --name ${container_name} -d -p 81:81 ${image_name}
+fi</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>
